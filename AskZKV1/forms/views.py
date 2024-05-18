@@ -4,6 +4,7 @@ from django.db.models import Count
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
 import json
+from .worldID import verify_world_id, create_world_id_action
 
 @csrf_exempt
 @require_POST
@@ -65,37 +66,30 @@ def form(_, form_id):
 @csrf_exempt
 @require_POST
 def create(request):
+    data = json.loads(request.body)
+    payload = data.get('payload')
+    if not verify_world_id(payload, 'createform'):
+        return JsonResponse({'error': 'Wrong WorldID identificator. Try to log in again'}, status=401)
     try:
-        data = json.loads(request.body)
         form_data = data.get('form')
 
-        if not isinstance(form_data, dict):
-            return JsonResponse({'error': 'Invalid form data format. Expected a dictionary.'}, status=400)
 
         new_form = Form.objects.create()
         index = 0
-        for question_key, question_data in form_data.items():
-            if not isinstance(question_data, dict):
-                return JsonResponse({'error': f'Invalid question data format for question "{question_key}". Expected a dictionary.'}, status=400)
+        for _, question_data in form_data.items():
             
             value = question_data.get('value')
-            if not value:
-                return JsonResponse({'error': f'Missing "value" key for question "{question_key}".'}, status=400)
 
             new_question = Question.objects.create(value=value, form=new_form, order=index)
             index += 1
 
             possible_values = question_data.get('possible_values', [])
-            if not isinstance(possible_values, list):
-                return JsonResponse({'error': f'Invalid possible values format for question "{question_key}". Expected a list.'}, status=400)
 
-            for possible_value in possible_values:
-                if not isinstance(possible_value, str):
-                    return JsonResponse({'error': f'Invalid possible value format for question "{question_key}". Expected a string.'}, status=400)
-                
+            for possible_value in possible_values:        
                 PossibleValue.objects.create(value=possible_value, question=new_question)
+        create_world_id_action(new_form.id)
 
-        return JsonResponse({'message': 'Form created successfully.', 'form_id': str(new_form.id)})
+        return JsonResponse({'message': 'Form created successfully.', 'form_id': str(new_form.id), 'form_hash': new_form.hash})
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON data received in the request.'}, status=400)
 
