@@ -5,7 +5,6 @@ from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
 import json
 from .worldID import verify_world_id, create_world_id_action
-
 @csrf_exempt
 @require_POST
 def data(request):
@@ -68,17 +67,19 @@ def form(_, form_id):
 def create(request):
     data = json.loads(request.body)
     payload = data.get('payload')
-    if not verify_world_id(payload, 'createform'):
-        return JsonResponse({'error': 'Wrong WorldID identificator. Try to log in again'}, status=401)
+    # if not verify_world_id(payload, 'createform'):
+    #     return JsonResponse({'error': 'Wrong WorldID identificator. Try to log in again'}, status=401)
     try:
         form_data = data.get('form')
+        print(form_data)
 
 
         new_form = Form.objects.create()
         index = 0
-        for _, question_data in form_data.items():
+        for question_data in form_data:
             
             value = question_data.get('value')
+            print(value)
 
             new_question = Question.objects.create(value=value, form=new_form, order=index)
             index += 1
@@ -87,7 +88,6 @@ def create(request):
 
             for possible_value in possible_values:        
                 PossibleValue.objects.create(value=possible_value, question=new_question)
-        create_world_id_action(new_form.id)
 
         return JsonResponse({'message': 'Form created successfully.', 'form_id': str(new_form.id), 'form_hash': new_form.hash})
     except json.JSONDecodeError:
