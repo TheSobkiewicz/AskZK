@@ -1,10 +1,11 @@
 from django.http import JsonResponse
-from .models import Form, Question, PossibleValue
+from .models import Form, Question, PossibleValue, Answer
 from django.db.models import Count
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
 import json
 from .worldID import verify_world_id, create_world_id_action
+
 @csrf_exempt
 @require_POST
 def data(request):
@@ -71,7 +72,6 @@ def create(request):
     #     return JsonResponse({'error': 'Wrong WorldID identificator. Try to log in again'}, status=401)
     try:
         form_data = data.get('form')
-        print(form_data)
 
 
         new_form = Form.objects.create()
@@ -79,7 +79,6 @@ def create(request):
         for question_data in form_data:
             
             value = question_data.get('value')
-            print(value)
 
             new_question = Question.objects.create(value=value, form=new_form, order=index)
             index += 1
@@ -88,9 +87,31 @@ def create(request):
 
             for possible_value in possible_values:        
                 PossibleValue.objects.create(value=possible_value, question=new_question)
+        # create_world_id_action(new_form.id)
 
         return JsonResponse({'message': 'Form created successfully.', 'form_id': str(new_form.id), 'form_hash': new_form.hash})
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON data received in the request.'}, status=400)
 
+
+@csrf_exempt
+@require_POST
+def create_answers(request):
+    data = json.loads(request.body)
+    payload = data.get('payload')
+    form_id = data.get('form_id')
+    # if not verify_world_id(payload, form_id + "-submit"):
+    #     return JsonResponse({'error': 'Wrong WorldID identificator. Try to log in again'}, status=401)
+    try:
+        form = Form.objects.get(id=form_id)
+        answers = data.get('answers')
+        for key, values in answers.items():
+            question = Question.objects.get(form=form, value=key)
+            for value in values:
+                possible_value = PossibleValue.objects.get(question=question, value=value)
+                Answer.objects.create(possible_value=possible_value)
+
+        return JsonResponse({'message': 'Form answers submitted successfully'})
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data received in the request.'}, status=400)
 
